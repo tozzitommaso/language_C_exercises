@@ -1,88 +1,72 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <errno.h>
 #include <unistd.h>
+#include <ctype.h>
+#include <sys/wait.h>
 
-void controllaInput(int argc, char *argv[])
+
+void controllaParametri(int argc, char *argv[])
 {
-    if (argc != 3)
-    {
-        printf("Numero di argomenti errato\n");
-        exit(2);
-    }
-
-    if (strcmp(argv[1], "-p") != 0)
-    {
-        printf("Errore parametro\n");
-        exit(2);
-    }
-}
-
-void separaVocali(char str[], char vocali[], char consonanti[])
-{
-    int i, k = 0, j = 0;
-
-    for (i = 0; i < strlen(str); i++)
-    {
-        if (str[i] == 'a' || str[i] == 'i' || str[i] == 'u' || str[i] == 'o' || str[i] == 'e')
-        {
-            vocali[k] = str[i];
-            k++;
-        }
-        else
-        {
-            consonanti[j] = str[i];
-            j++;
-        }
-    }
+	if (argc != 2)
+	{
+		printf("Non hai inserito i parametri necessari \n");
+		printf("Uso: $./server <porta>\n");
+		exit(0);
+	}
 }
 
 int main(int argc, char *argv[])
 {
 
-    controllaInput(argc, argv);
+	controllaParametri(argc, argv);
 
-    struct sockaddr_in server_addr, client_addr;
-    int soa, socketfd, on = 1, fromlen = sizeof(server_addr), dim;
+	struct sockaddr_in servizio, rem_indirizzo;
+	int pid, soa, socketfd, on = 1, fromlen = sizeof(servizio);
 
-    struct hostent *host;
-    memset((char *)&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(atoi(argv[2]));
+	memset((char *)&servizio, 0, sizeof(servizio));
 
-    char stringa[100], vocali[100], consonanti[100];
+	servizio.sin_family = AF_INET;
+	servizio.sin_addr.s_addr = htonl(INADDR_ANY);
+	servizio.sin_port = htons(atoi(argv[1]));
 
-    socketfd = socket(AF_INET, SOCK_STREAM, 0);
-    bind(socketfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	socketfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    listen(socketfd, 10);
-    for (;;)
-    {
-        printf("\n\nServer in ascolto...\n");
-        fflush(stdout);
+	setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+	bind(socketfd, (struct sockaddr *)&servizio, sizeof(servizio));
+	listen(socketfd, 10);
 
-        soa = accept(socketfd, (struct sockaddr *)&client_addr, &fromlen);
+	for (;;)
+	{
+		printf("\n\nServer in ascolto...\n");
+		fflush(stdout);
 
-        read(soa, &dim, sizeof(int));
-        read(soa, stringa, dim);
+		soa = accept(socketfd, (struct sockaddr *)&rem_indirizzo, &fromlen);
 
-        separaVocali(stringa, vocali, consonanti);
+		pid = fork();
 
-        printf("vocali: %s\n", vocali);
-        printf("consonanti: %s\n", consonanti);
+		if (pid == 0)
+		{
+			char nome_file[100];
+			close(socketfd);
+			int nread = read(soa, nome_file, sizeof(nome_file));
+			nome_file[nread] = '\0';
+			close(1);
+			dup(soa);
+			close(soa);
+			execl("/usr/bin/cat", "cat", nome_file, (char *)0);
+			return -1;
+		}
+		close(soa);
+	}
+	close(socketfd);
 
-        int dimconsonanti = strlen(consonanti);
-        write(soa, &dimconsonanti, sizeof(int));
-        write(soa, consonanti, sizeof(consonanti));
-
-        int dimvocali = strlen(vocali);
-        write(soa, &dimvocali, sizeof(int));
-        write(soa, vocali, sizeof(vocali));
-
-        close(soa);
-    }
-
-    return 0;
+	return 0;
 }

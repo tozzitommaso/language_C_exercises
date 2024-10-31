@@ -11,60 +11,57 @@
 #include <unistd.h>
 #include <ctype.h>
 
-#define SERVER_PORT 1313
-#define SOCKET_ERROR ((int)-1)
-#define DIMBUFF 512
+
+void controllaParametri(int argc, char *argv[])
+{
+	if (argc != 2)
+	{
+		printf("Non hai inserito i parametri necessari \n");
+		printf("Uso: $./server <porta>\n");
+		exit(0);
+	}
+}
 
 int main(int argc, char *argv[])
 {
 
+	controllaParametri(argc, argv);
+
 	struct sockaddr_in servizio, rem_indirizzo;
-	int nread, soa, socketfd, client_len, fd, on = 1, fromlen = sizeof(servizio);
-	struct hostent *host;
+	int soa, socketfd, on = 1, fromlen = sizeof(servizio);
 	char carattere, risposta;
 
 	memset((char *)&servizio, 0, sizeof(servizio));
 
 	servizio.sin_family = AF_INET;
 	servizio.sin_addr.s_addr = htonl(INADDR_ANY);
-	servizio.sin_port = htons(SERVER_PORT);
+	servizio.sin_port = htons(atoi(argv[1]));
 
 	socketfd = socket(AF_INET, SOCK_STREAM, 0);
 
-	//Bind
+	// Bind
 	setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 	bind(socketfd, (struct sockaddr *)&servizio, sizeof(servizio));
 
 	listen(socketfd, 10);
 
-	//attensa del client
 	for (;;)
 	{
 		printf("\n\nServer in ascolto...\n");
-		fflush(stdout);
 
-		//accept
 		soa = accept(socketfd, (struct sockaddr *)&rem_indirizzo, &fromlen);
 
-		//risoluzione del client
-		host = gethostbyaddr((char *)&rem_indirizzo.sin_addr, sizeof(rem_indirizzo.sin_addr), AF_INET);
-		printf("\n\n Stabilita la connessione con il client %s", host->h_name);
-
-		//ricevere i dati dal client
-		nread = read(soa, &carattere, sizeof(carattere));
+		read(soa, &carattere, sizeof(carattere));
 
 		printf("\n\tRicevuto: %c\n", carattere);
 		risposta = toupper(carattere);
 		printf("\tconvertito %c in %c\n\n\n", carattere, risposta);
 
-		//scrittura del carattere all'interno della socket
 		write(soa, &risposta, sizeof(risposta));
 
-		//chiusura socket
 		close(soa);
-
-		//close(socketfd);
 	}
 
+	close(socketfd);
 	return 0;
 }
